@@ -1,0 +1,33 @@
+{
+  "props": {
+    "pageProps": {
+      "initialData": {
+        "product": {
+          "usItemId": "104517984",
+          "name": "Great Value Whole Vitamin D Milk, 1 gal",
+          "brand": "Great Value",
+          "canonicalUrl": "/ip/Great-Value-Whole-Vitamin-D-Milk-1-gal/104517984",
+          "gtin": "00078742034165",
+          "imageInfo": {"thumbnailUrl": "https://i5.walmartimages.com/asr/milk-1gal-large.jpeg"},
+          "price": {
+            "currentPrice": {"price": 3.48, "priceString": "$3.48"},
+            "wasPrice": {"price": 3.98, "priceString": "$3.98"},
+            "unitPrice": {"price": 0.027, "priceString": "$0.03/fl oz"}
+          },
+          "availabilityStatus": "IN_STOCK",
+          "sellerId": "0",
+          "sellerName": "Walmart.com",
+          "fulfillmentType": ["STORE", "PICKUP"],
+          "productLocation": "Aisle A12",
+          "dimensions": {"weight": {"value": "8.6", "unit": "lb"}},
+          "specifications": [
+            {"name": "Brand", "value": "Great Value"},
+            {"name": "Net Weight", "value": "1 gal (3.78 L)"},
+            {"name": "Item Weight", "value": "8.6 lb"}
+          ],
+          "promotions": [{"description": "2 for $5 ($2.50 each)"}]
+        }
+      }
+    }
+  }
+}

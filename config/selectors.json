@@ -1,0 +1,87 @@
+{
+  "_comment": "DOM fallback selectors, tried in order. Edit here when Walmart changes markup - no code change needed.",
+
+  "store_indicator": [
+    "[data-testid='store-picker-trigger']",
+    "button[aria-label*='Store']",
+    "#store-picker-trigger",
+    "[data-automation-id='store-picker']",
+    ".store-selector",
+    "header [data-testid*='location']"
+  ],
+  "store_picker_open": [
+    "[data-testid='store-picker-trigger']",
+    "button[aria-label*='Store']",
+    "[data-automation-id='store-picker']"
+  ],
+  "store_picker_zip_input": [
+    "input#location-search-input",
+    "input[aria-label*='ZIP']",
+    "input[aria-label*='Zip']",
+    "input[name='location']",
+    "input[autocomplete='postal-code']"
+  ],
+  "store_picker_submit": [
+    "button[aria-label*='Search']",
+    "button[data-automation-id='location-search-submit']",
+    ".location-search-submit",
+    "form button[type='submit']"
+  ],
+  "store_picker_results": [
+    "[data-testid='store-search-results'] li",
+    "[data-automation-id='store-list'] li",
+    ".store-list-item",
+    "ul[aria-label*='store'] li"
+  ],
+  "store_picker_use_store": [
+    "button[aria-label*='Use this store']",
+    "[data-testid*='use-store']",
+    "button[aria-label*='Select store']"
+  ],
+  "category_tiles": [
+    "div[data-item-id]",
+    "[data-testid='list-view'] div[data-item-id]",
+    "li[data-item-id]",
+    "div[data-automation-id='search-result-item']"
+  ],
+  "tile_title": ["[data-automation-id='product-title']", "a[link-identifier='resultTitle']", "span[data-automation-id='product-title']"],
+  "tile_price": ["[data-automation-id='product-price'] .f2", "[itemprop='price']", ".f1.f2"],
+  "tile_image": ["img[loading]", "img[data-automation-id='hero-image']", "img"],
+  "tile_link": ["a[link-identifier='resultTitle']", "a[href*='/ip/']"],
+  "tile_badges": ["[data-automation-id='product-flag']", ".tag-leading-badge", ".badge"],
+
+  "pdp_price_per_measure": [
+    "[data-testid='price-per-unit']",
+    "[data-automation-id='price-per-unit']",
+    ".price-per-unit",
+    "[data-testid='unit-price']",
+    ".w_iUH7"
+  ],
+  "pdp_coupon_modules": [
+    "[data-testid='coupon-module']",
+    "[data-automation-id='coupon-module']",
+    ".coupon-container",
+    "[data-testid*='coupon']"
+  ],
+  "pdp_promo_blocks": [
+    "[data-testid='promo-module']",
+    "[data-automation-id='offer-module']",
+    ".promotional-offers",
+    "[data-testid*='promotion']"
+  ],
+  "pdp_spec_rows": [
+    ".specifications-table tr",
+    "table[aria-label*='Specification'] tr",
+    "#specifications tr",
+    ".b_a_tableStyle tr"
+  ],
+  "pdp_about_bullets": ["[data-testid='about-item'] li", ".about-desc li", "#aboutThisItem li"],
+
+  "pagination_next": [
+    "button[aria-label='Next Page']",
+    "button[data-automation-id='next-page']",
+    "a[aria-label='Next Page']",
+    "link[rel='next']"
+  ],
+  "infinite_scroll_anchor": ["footer", "[data-automation-id='footer']", "main"]
+}

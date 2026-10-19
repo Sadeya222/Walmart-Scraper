@@ -1,0 +1,24 @@
+# Local run harness.  Mounts config in and the dataset out, so a rebuild never
+# destroys results.
+#
+#   docker compose run --rm scraper --crawl
+#   docker compose run --rm scraper --crawl --store 2457 --category milk
+services:
+  scraper:
+    build: .
+    image: walmart-scraper:local
+    env_file:
+      - .env
+    environment:
+      WMT_OUTPUT_DIR: /app/output
+      WMT_STATE_DIR: /app/state
+      WMT_QUARANTINE_DIR: /app/quarantine
+    volumes:
+      - ./config:/app/config:ro
+      - ./output:/app/output
+      - ./state:/app/state
+      - ./quarantine:/app/quarantine
+    # Chromium needs a little more shared memory than Docker's 64 MB default.
+    shm_size: "1gb"
+    # The runner exits non-zero when a dataset is withheld; surface that.
+    stop_grace_period: 60s

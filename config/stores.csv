@@ -1,0 +1,7 @@
+# Sample store list - REPLACE store_id / zipcode / address with your own locations.
+# store_id is Walmart's numeric store number (used for https://www.walmart.com/store/<id>/m).
+# zipcode drives the ZIP based context fallback when the store number is unknown.
+# store_logo is optional: it is stamped verbatim onto every row from this store.
+store_id,zipcode,store_name,store_location,store_logo,latitude,longitude,enabled
+2457,78745,Walmart Supercenter,"4701 W Stassney Ln, Austin, TX 78745",,30.21750,-97.82350,true
+3086,10001,Walmart Supercenter,"3500 Forest Hill Blvd, West Palm Beach, FL 33406",,26.64890,-80.09560,false

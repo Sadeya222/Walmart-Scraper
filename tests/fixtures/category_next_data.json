@@ -1,0 +1,107 @@
+{
+  "props": {
+    "pageProps": {
+      "initialData": {
+        "searchResult": {
+          "query": "whole milk",
+          "meta": {"resultCount": 128},
+          "itemStacks": [
+            {
+              "stackId": "search-stack-1",
+              "itemsV2": [
+                {
+                  "usItemId": "104517984",
+                  "title": "Great Value Whole Vitamin D Milk, 1 gal",
+                  "canonicalUrl": "/ip/Great-Value-Whole-Vitamin-D-Milk-1-gal/104517984",
+                  "imageInfo": {"thumbnailUrl": "https://i5.walmartimages.com/asr/milk-1gal.jpeg?odnHeight=180"},
+                  "brand": "Great Value",
+                  "priceInfo": {
+                    "currentPrice": {"price": 3.48, "priceString": "$3.48"},
+                    "wasPrice": {"price": 3.98, "priceString": "$3.98"},
+                    "unitPrice": {"price": 0.027, "priceString": "$0.03/fl oz"}
+                  },
+                  "availabilityStatus": "IN_STOCK",
+                  "sellerId": "0",
+                  "sellerName": "Walmart.com",
+                  "fulfillmentType": ["STORE", "PICKUP", "SHIP"],
+                  "productLocation": "Aisle A12",
+                  "sponsoredProduct": "NON_SPONSORED",
+                  "productClass": "REGULAR",
+                  "badges": {
+                    "flags": [{"text": "2 for $5", "type": "LABEL", "id": "flag-1"}],
+                    "tags": [{"text": "Rollback", "type": "LABEL"}]
+                  },
+                  "dimensions": {"weight": {"value": "8.6", "unit": "lb"}}
+                },
+                {
+                  "usItemId": "554466778",
+                  "title": "Tide Original Liquid Laundry Detergent, 92 fl oz",
+                  "canonicalUrl": "/ip/Tide-Original-Liquid-Laundry-Detergent-92-fl-oz/554466778",
+                  "imageInfo": {"thumbnailUrl": "https://i5.walmartimages.com/asr/tide-92oz.jpeg"},
+                  "brand": "Tide",
+                  "priceInfo": {
+                    "currentPrice": {"price": 12.97, "priceString": "$12.97"}
+                  },
+                  "availabilityStatus": "IN_STOCK",
+                  "sellerId": "9F3EDEB47BD44F0F8C3E3D3E2A1B0C1D",
+                  "sellerName": "SuperSaver Direct LLC",
+                  "fulfillmentType": ["SHIP"],
+                  "sponsoredProduct": "NON_SPONSORED",
+                  "badges": {"flags": [{"text": "Clip Coupon: Save $2"}]}
+                },
+                {
+                  "usItemId": "777888999",
+                  "title": "Equate Ibuprofen Tablets 200 mg, 500 Count",
+                  "canonicalUrl": "/ip/Equate-Ibuprofen-Tablets-200-mg-500-Count/777888999",
+                  "imageInfo": {"thumbnailUrl": "https://i5.walmartimages.com/asr/equate-ibu.jpeg"},
+                  "brand": "Equate",
+                  "priceInfo": {
+                    "currentPrice": {"price": 9.47, "priceString": "$9.47"},
+                    "unitPrice": {"priceString": "$0.02/ct"}
+                  },
+                  "availabilityStatus": "IN_STOCK",
+                  "sellerId": "0",
+                  "sellerName": "Walmart.com",
+                  "fulfillmentType": ["STORE", "PICKUP"],
+                  "sponsoredProduct": "NON_SPONSORED",
+                  "promotions": [{"description": "$3.99 each with Digital Coupon"}],
+                  "specifications": [{"name": "Weight", "value": "approximately 1.1 lb"}]
+                },
+                {
+                  "product": {
+                    "usItemId": "104517984",
+                    "title": "Great Value Whole Vitamin D Milk, 1 gal (Sponsored)",
+                    "canonicalUrl": "/ip/Great-Value-Whole-Vitamin-D-Milk-1-gal/104517984?athena_location_id=abc",
+                    "imageInfo": {"thumbnailUrl": "https://i5.walmartimages.com/asr/milk-1gal.jpeg"},
+                    "priceInfo": {"currentPrice": {"price": 3.48}},
+                    "sellerId": "0",
+                    "sellerName": "Walmart.com",
+                    "sponsoredProduct": "SPONSORED",
+                    "adInfo": {"slot": "search-top"}
+                  }
+                },
+                {
+                  "usItemId": "222333444",
+                  "title": "Marketside Fresh Spinach, 10 oz",
+                  "canonicalUrl": "/ip/Marketside-Fresh-Spinach-10-oz/222333444",
+                  "imageInfo": {"thumbnailUrl": "https://i5.walmartimages.com/asr/spinach.jpeg"},
+                  "brand": "Marketside",
+                  "priceInfo": {
+                    "currentPrice": {"price": 2.98, "priceString": "$2.98"}
+                  },
+                  "availabilityStatus": "IN_STOCK",
+                  "sellerId": "0",
+                  "sellerName": "Walmart.com",
+                  "fulfillmentType": ["STORE"],
+                  "sponsoredProduct": "NON_SPONSORED",
+                  "badges": {"flags": [{"text": "Get $5 Walmart Cash on $25 purchase"}]},
+                  "dimensions": {"weight": {"value": "10", "unit": "oz"}}
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

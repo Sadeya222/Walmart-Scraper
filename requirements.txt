@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------
+# Pinned for reproducible builds (Docker / Azure Container Instances).
+#
+# VERSION CEILING - IMPORTANT:
+#   scrapy 2.19 + twisted 26.4 was observed to start the execution engine but
+#   never run the scheduled start-requests task (the engine silently returns
+#   after engine_started), so the crawler exits having crawled nothing.  Until
+#   that combination is fixed upstream, stay on the stack pinned here and bump
+#   deliberately, running `make test` after any change.
+# ---------------------------------------------------------------------------
+Scrapy==2.13.3
+scrapy-playwright==0.0.48
+playwright==1.49.1
+Twisted==24.11.0
+pyOpenSSL==25.1.0
+cryptography==45.0.7
+service-identity==24.2.0
+
+# Configuration / secrets
+python-dotenv==1.0.1
+
+# Optional: Azure Blob Storage upload of the published dataset.
+# Install in the Azure image; the scraper degrades gracefully without it.
+azure-storage-blob==12.24.1
