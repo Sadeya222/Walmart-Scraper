@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: python -m flake8 --max-line-length=110 --extend-ignore=E203,W503 walmart_scraper run_scraper.py tests
+
+      # The suite includes a full end-to-end crawl against a local fixture
+      # server, so no Playwright browser download is needed in CI.
+      - name: Test
+        run: python -m pytest tests -q

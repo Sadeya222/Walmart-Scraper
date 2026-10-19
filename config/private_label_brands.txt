@@ -1,0 +1,19 @@
+# Extra Walmart private-label / store brands, one per line.
+# Matching is case, accent and punctuation insensitive and matches whole phrases.
+# Entries here are merged with walmart_scraper/constants.DEFAULT_PRIVATE_LABEL_BRANDS.
+great value
+marketside
+equate
+freshness guaranteed
+better homes & gardens
+mainstays
+onn
+ozark trail
+spring valley
+parent's choice
+sam's choice
+athletic works
+wonder nation
+holiday time
+everstart
+reliOn

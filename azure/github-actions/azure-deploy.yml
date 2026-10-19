@@ -1,0 +1,47 @@
+name: Deploy and crawl on Azure
+
+on:
+  workflow_dispatch:
+    inputs:
+      crawl_args:
+        description: "Extra arguments passed to run_scraper.py"
+        required: false
+        default: ""
+  schedule:
+    # 06:30 UTC daily.  Disable by removing this block.
+    - cron: "30 6 * * *"
+
+jobs:
+  deploy-and-run:
+    runs-on: ubuntu-latest
+    environment: azure
+    env:
+      RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      REGISTRY: ${{ vars.AZURE_CONTAINER_REGISTRY }}
+      STORAGE_ACCOUNT: ${{ vars.AZURE_STORAGE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Build, push and start the container group
+        run: ./azure/aci/deploy-aci.sh "$RESOURCE_GROUP" "$REGISTRY" "$STORAGE_ACCOUNT"
+
+      - name: Wait for the run to finish
+        run: |
+          for _ in $(seq 1 120); do
+            state=$(az container show -g "$RESOURCE_GROUP" -n walmart-scraper \
+              --query 'containers[0].instanceView.currentState.state' -o tsv || true)
+            echo "container state: ${state:-unknown}"
+            [[ "$state" == "Terminated" || "$state" == "Succeeded" ]] && break
+            sleep 30
+          done
+
+      - name: Collect logs and fail on a withheld dataset
+        run: |
+          az container logs -g "$RESOURCE_GROUP" -n walmart-scraper --tail 400 | tee run.log
+          grep -q "outcome          : OK" run.log || {
+            echo "::error::the scraper did not publish a dataset"; exit 1; }

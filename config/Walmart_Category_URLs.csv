@@ -1,0 +1,9 @@
+category_url,category,sub_category,max_pages,canary_us_item_id,enabled,notes
+https://www.walmart.com/search?q=whole+milk,Grocery,Dairy & Milk,3,,true,Search shape - guaranteed valid Walmart URL
+https://www.walmart.com/search?q=breakfast+cereal,Grocery,Breakfast Cereal,3,,true,
+https://www.walmart.com/search?q=toilet+paper,Household Essentials,Paper Goods,3,,true,
+https://www.walmart.com/search?q=laundry+detergent,Household Essentials,Laundry,3,,true,
+https://www.walmart.com/search?q=pain+relief,Health,OTC Pain Relief,2,,true,
+https://www.walmart.com/search?q=baby+formula,Baby,Infant Formula,2,,true,
+https://www.walmart.com/search?q=dog+food,Pets,Dog Food,2,,true,
+https://www.walmart.com/search?q=frozen+pizza,Grocery,Frozen Foods,2,,true,

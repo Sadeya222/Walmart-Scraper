@@ -1,0 +1,27 @@
+[project]
+name = "walmart-scraper"
+version = "1.0.0"
+description = "Location-specific Walmart catalog scraper (Scrapy + Playwright) for Azure"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[project.scripts]
+walmart-scraper = "run_scraper:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning:twisted.*",
+]
+
+[tool.flake8]
+max-line-length = 110
+extend-ignore = ["E203", "W503"]
+
+[tool.coverage.run]
+source = ["walmart_scraper"]

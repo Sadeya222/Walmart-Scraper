@@ -1,0 +1,88 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "containerGroupName": { "type": "string", "defaultValue": "walmart-scraper" },
+    "location": { "type": "string", "defaultValue": "[resourceGroup().location]" },
+    "imageName": {
+      "type": "string",
+      "metadata": { "description": "Full image reference, e.g. myregistry.azurecr.io/walmart-scraper:latest" }
+    },
+    "cpuCores": { "type": "string", "defaultValue": "2" },
+    "memoryInGb": { "type": "string", "defaultValue": "4" },
+    "restartPolicy": { "type": "string", "defaultValue": "Never" },
+    "storageAccountName": { "type": "string" },
+    "storageAccountKey": { "type": "securestring" },
+    "fileShareName": { "type": "string", "defaultValue": "walmart-scraper" },
+    "azureStorageConnectionString": { "type": "securestring", "defaultValue": "" },
+    "azureStorageContainer": { "type": "string", "defaultValue": "walmart-datasets" },
+    "proxyUrl": { "type": "securestring", "defaultValue": "" },
+    "minRecordsPerRun": { "type": "string", "defaultValue": "25" },
+    "concurrency": { "type": "string", "defaultValue": "2" },
+    "logLevel": { "type": "string", "defaultValue": "INFO" }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "apiVersion": "2023-05-01",
+      "name": "[parameters('containerGroupName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "restartPolicy": "[parameters('restartPolicy')]",
+        "osType": "Linux",
+        "sku": "Standard",
+        "containers": [
+          {
+            "name": "scraper",
+            "properties": {
+              "image": "[parameters('imageName')]",
+              "command": ["./entrypoint.sh", "--crawl"],
+              "resources": {
+                "requests": {
+                  "cpu": "[parameters('cpuCores')]",
+                  "memoryInGb": "[parameters('memoryInGb')]"
+                }
+              },
+              "environmentVariables": [
+                { "name": "WMT_OUTPUT_DIR", "value": "/data/output" },
+                { "name": "WMT_STATE_DIR", "value": "/data/state" },
+                { "name": "WMT_QUARANTINE_DIR", "value": "/data/quarantine" },
+                { "name": "WMT_MIN_RECORDS_PER_RUN", "value": "[parameters('minRecordsPerRun')]" },
+                { "name": "WMT_CONCURRENCY", "value": "[parameters('concurrency')]" },
+                { "name": "WMT_LOG_LEVEL", "value": "[parameters('logLevel')]" },
+                { "name": "WMT_RESUME", "value": "true" },
+                { "name": "AZURE_STORAGE_CONTAINER", "value": "[parameters('azureStorageContainer')]" }
+              ],
+              "secureEnvironmentVariables": [
+                { "name": "WMT_PROXY_URL", "value": "[parameters('proxyUrl')]" },
+                {
+                  "name": "AZURE_STORAGE_CONNECTION_STRING",
+                  "value": "[parameters('azureStorageConnectionString')]"
+                }
+              ],
+              "volumeMounts": [
+                { "name": "walmart-data", "mountPath": "/data" }
+              ]
+            }
+          }
+        ],
+        "volumes": [
+          {
+            "name": "walmart-data",
+            "azureFile": {
+              "shareName": "[parameters('fileShareName')]",
+              "storageAccountName": "[parameters('storageAccountName')]",
+              "storageAccountKey": "[parameters('storageAccountKey')]"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "containerGroupFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerInstance/containerGroups', parameters('containerGroupName'))).ipAddress.fqdn]"
+    }
+  }
+}
