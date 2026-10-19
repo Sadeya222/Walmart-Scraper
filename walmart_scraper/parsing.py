@@ -15,6 +15,7 @@ different, always-empty column that is computed downstream.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Sequence
 
@@ -134,10 +135,14 @@ def search_result(payload: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {}
     for path in (
+        # Verified on a captured walmart.com /search payload: the real product
+        # array sits one level deeper than initialData.
+        "props.pageProps.initialData.data.searchResult",
         "props.pageProps.initialData.searchResult",
         "props.pageProps.initialData",
         "props.pageProps.searchResult",
         "props.initialData.searchResult",
+        "searchResult",
     ):
         found = _walk(payload, path)
         if not isinstance(found, dict):
@@ -293,8 +298,24 @@ def _parse_product_node(
     price_node = item.get("price") if isinstance(item.get("price"), dict) else {}
     price_source = price_info or price_node
 
-    current = _first(price_source, "currentPrice.price", "price", "minPrice", "amount")
-    was = _first(price_source, "wasPrice.price", "wasPrice", "originalPrice.price")
+    # Real listing tiles leave currentPrice/itemPrice/wasPrice/unitPrice empty
+    # and keep minPrice at 0, so a structured zero must not be read as a price:
+    # the amount lives in priceInfo.priceDetails.priceLines[].
+    line_prices = _price_line_amounts(price_info)
+    current = _first(price_source, "currentPrice.price", "price", "amount")
+    if not _usable_amount(current):
+        current = _first(price_source, "minPrice")
+    if not _usable_amount(current):
+        current = line_prices.get("current")
+    was = _first(price_source, "wasPrice.price", "originalPrice.price")
+    if not _usable_amount(was):
+        was = _first(price_source, "wasPrice")
+    if not _usable_amount(was):
+        was = line_prices.get("was")
+    if not _usable_amount(current):
+        current = None
+    if not _usable_amount(was):
+        was = None
     # Walmart's price-per-measure object is called "unitPrice" - see module docstring.
     ppm_raw = _first(
         price_source,
@@ -321,7 +342,16 @@ def _parse_product_node(
         title=title,
         url=url,
         image_url=image_url,
-        brand=clean_text(_first(item, "brand", "brandName", "productSeoData.brand")),
+        brand=clean_text(
+            _first(
+                item,
+                "brand",
+                "productBrand.name",
+                "productBrand",
+                "brandName",
+                "productSeoData.brand",
+            )
+        ),
         upc=normalize_upc(_first(item, "gtin", "upc", "gtin13", "gtin12", "productSeoData.gtin")),
         weight_candidates=_weight_candidates(item),
         regular_price=regular,
@@ -332,12 +362,67 @@ def _parse_product_node(
         seller_id=safe_str(_first(item, "sellerId", "seller.id")),
         availability=safe_str(_first(item, "availabilityStatus", "availability.status", "stock")),
         fulfillment=fulfillment,
-        product_location=clean_text(_first(item, "productLocation", "aisleLocation", "location")),
+        product_location=_location_label(item),
         sponsored=_is_sponsored(item),
         source=source,
         raw_flags=[safe_str(flag) for flag in _as_list(_first(item, "productClass", "classType"))],
     )
     return product
+
+
+# lineType -> which slot the amount fills.  Verified on a captured /search
+# payload: [{"lineType": "CURRENT_PRICE",
+#            "values": [{"key": "PRICE", "value": "69.99"}]}]
+_PRICE_LINE_SLOTS = {
+    "CURRENT_PRICE": "current",
+    "DISCOUNTED_PRICE": "current",
+    "WAS_PRICE": "was",
+    "PREVIOUS_PRICE": "was",
+    "COMPARISON_PRICE": "was",
+    "COMPARISON": "was",
+}
+
+
+def _usable_amount(value: Any) -> bool:
+    """True for a real monetary amount.  Walmart sends ``minPrice: 0`` on tiles
+    whose price is not yet resolved, and that is not a price."""
+    amount = _parse_amount(value)
+    return amount is not None and amount > 0
+
+
+def _parse_amount(value: Any) -> float | None:
+    if isinstance(value, bool) or value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = clean_text(value)
+    if not text:
+        return None
+    match = re.search(r"\d+(?:[,.]\d+)?", text.replace(",", ""))
+    return float(match.group(0)) if match else None
+
+
+def _price_line_amounts(price_info: Mapping[str, Any]) -> dict[str, float | None]:
+    """``{"current": …, "was": …}`` read from ``priceDetails.priceLines``."""
+    found: dict[str, float | None] = {}
+    for line in _as_list(_walk(price_info, "priceDetails.priceLines")):
+        if not isinstance(line, dict):
+            continue
+        line_type = clean_text(safe_str(line.get("lineType"))).upper()
+        for entry in _as_list(line.get("values")):
+            if not isinstance(entry, dict):
+                continue
+            key = clean_text(safe_str(entry.get("key"))).upper()
+            if key == "WAS_PRICE":
+                slot = "was"
+            elif key == "PRICE":
+                slot = _PRICE_LINE_SLOTS.get(line_type, "current")
+            else:
+                continue
+            amount = _parse_amount(entry.get("value"))
+            if amount is not None and amount > 0:
+                found.setdefault(slot, amount)
+    return found
 
 
 def _origin(url: str) -> str:
@@ -405,6 +490,20 @@ def _weight_candidates(item: dict[str, Any]) -> list[str]:
     return candidates
 
 
+def _location_label(item: dict[str, Any]) -> str:
+    """Aisle/shelf text, or ``""``.
+
+    A real product node also carries a structured ``location`` object
+    (``postalCode``/``storeIds``/``city``); that is store context, not a shelf
+    label, so a dict value is never rendered into the ``store_location`` field.
+    """
+    for path in ("productLocation", "aisleLocation", "location"):
+        value = _walk(item, path)
+        if isinstance(value, str) and clean_text(value):
+            return clean_text(value)
+    return ""
+
+
 def _is_sponsored(item: dict[str, Any]) -> bool:
     sponsored = _first(item, "sponsoredProduct", "isSponsored", "sponsored", "adInfo")
     if isinstance(sponsored, bool):
@@ -422,6 +521,9 @@ def extract_pdp_product(payload: dict[str, Any] | None, *, base_url: str = "") -
         return None
     product = None
     for path in (
+        # Verified on a captured walmart.com product page: the product lives at
+        # props.pageProps.initialData.data.product (extra "data" level).
+        "props.pageProps.initialData.data.product",
         "props.pageProps.initialData.product",
         "props.pageProps.product",
         "props.pageProps.initialData",
@@ -470,9 +572,28 @@ def extract_pdp_product(payload: dict[str, Any] | None, *, base_url: str = "") -
                     parsed.ppm = candidate
                     break
 
+    # A real PDP keeps its spec sheet at initialData.data.idml.specifications -
+    # a sibling of the product node, so it is not reached by _weight_candidates.
+    for candidate in _specification_candidates(payload):
+        if candidate not in parsed.weight_candidates:
+            parsed.weight_candidates.append(candidate)
     if not parsed.weight_candidates:
         parsed.weight_candidates = _weight_candidates(product)
     return parsed
+
+
+def _specification_candidates(payload: dict[str, Any]) -> list[str]:
+    """Weight-ish strings from the IDML spec sheet beside the product node."""
+    for path in (
+        "props.pageProps.initialData.data",
+        "props.pageProps.initialData",
+        "props.pageProps",
+    ):
+        node = _walk(payload, path)
+        specs = _walk(node, "idml.specifications") if isinstance(node, dict) else None
+        if _as_list(specs):
+            return _weight_candidates({"specifications": specs})
+    return []
 
 
 def _all_strings(node: Any, limit: int = 400) -> Iterable[str]:

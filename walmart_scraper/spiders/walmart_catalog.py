@@ -321,7 +321,16 @@ class WalmartCatalogSpider(scrapy.Spider):
 
         page = response.meta.get("playwright_page")
         mode = self.config.store_verification_mode
-        verification = self._verifier.verify_from_text(_indicator_text(response), store)
+
+        # The location Walmart resolved into the payload is the strongest
+        # signal: it is the store this page was actually priced for, and it is
+        # present even when the header indicator is not rendered.  The rendered
+        # indicator text is the fallback for pages with no location in payload.
+        verification = self._verifier.verify_from_payload(
+            BlockingDetector.extract_next_data(response.text), store
+        )
+        if not verification.verified:
+            verification = self._verifier.verify_from_text(_indicator_text(response), store)
 
         if not verification.verified and page is not None and mode in {"ui", "cookie_then_ui"}:
             logger.warning(
@@ -359,7 +368,6 @@ class WalmartCatalogSpider(scrapy.Spider):
                 store.store_id, store.zipcode, verification.detail,
             )
             return False
-            return
 
         logger.warning(
             "store %s unverified but WMT_REQUIRE_STORE_VERIFIED=false; continuing",

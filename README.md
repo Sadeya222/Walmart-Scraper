@@ -350,7 +350,7 @@ docker run --rm -v "$PWD/config:/app/config:ro" -v "$PWD/output:/app/output" \
 ## 10. Tests
 
 ```bash
-make test       # 279 tests
+make test       # 375 tests
 make lint       # flake8
 make coverage
 ```
@@ -363,6 +363,32 @@ verification, listing parse, pagination, PDP merge, deal classification, policy 
 atomic publication, the validation gate and the exit code. A blocked scenario asserts the
 previous dataset survives byte-for-byte.
 
+### Real captured data vs. hand-written fixtures
+
+Two different kinds of fixture are in play, and the difference matters:
+
+- **`tests/fixtures/real/`** — real Walmart pages and payloads, reproduced from public
+  repository commits and otherwise unchanged. `tests/fixtures/real/SOURCES.md` records the
+  exact source of each file, what it proves, and which captures were evaluated and rejected.
+- **`tests/fixtures/`** (everything else) — HTML/JSON **written for this project**. These are
+  useful for end-to-end wiring but they can only prove the parser agrees with its own author's
+  assumptions, never that it agrees with Walmart.
+
+`tests/test_real_captures.py` (96 tests) runs the real code paths against the real captures and
+asserts the values Walmart actually sent. That is what found these defects, all of which the
+hand-written fixtures were consistent with:
+
+| Real-data finding | Defect it exposed |
+| --- | --- |
+| Product payload is at `props.pageProps.initialData.data.product` | The parser lacked the extra `data` level, so `extract_pdp_product()` returned `None` on a real PDP |
+| Listing tiles serve `itemPrice`/`linePrice`/`wasPrice` as `""` and `minPrice` as `0`, with the amount only in `priceInfo.priceDetails.priceLines[]` | Real prices exported as `0.00`; a real `DISCOUNTED_PRICE` + `COMPARISON/WAS_PRICE` markdown was invisible |
+| One spec sheet can state several different measures (`Size: 16 oz` *and* `Weight: 1.12 lb`) | Taking the first parseable candidate reported the size as the weight |
+| `product.location` is a structured object | It was being stringified into a text field |
+| There is no `gtin` key in the product payload | A `gtin` → `upc` fallback would have read nothing; the real key is `product.upc` |
+
+Reverting any of those fixes makes the real-capture tests fail, which is the point: they fail
+for the right reason.
+
 Playwright is switched off for those tests (`WMT_USE_PLAYWRIGHT=false`), so the browser
 layer is the one part not covered by CI — see the next section.
 
@@ -374,12 +400,27 @@ layer is the one part not covered by CI — see the next section.
   state and falls back to `config/selectors.json`, but a layout change can still require
   selector or path updates. The store cookie names in `store_context.py` are likewise observed
   values, which is exactly why store verification is mandatory rather than best-effort.
+- **Real-capture coverage is narrow.** Only three genuine captures are in the repository (one
+  PDP, one search listing, 15 transcribed products). They cover pricing, weight, ppm, brand,
+  seller, and payload-based store verification, but **not** volume deals, clipped digital
+  coupons, marketplace sellers, or shipping-only offers — those rules are only exercised by the
+  hand-written fixtures and therefore remain assumptions about Walmart until confirmed against
+  live pages. The parser is written to degrade to `""` rather than guess when a shape is
+  unrecognised.
+- **No live run has been performed here.** `walmart.com` was unreachable from the build
+  environment (DNS resolved, TCP connect refused). The sample rows in
+  `config/Walmart_Category_URLs.csv` use `/search?q=…` URLs, whose shape is guaranteed valid;
+  if you replace them with `/cp/<id>` category URLs, verify those ids against a live site first.
+  The first live run should be `--pages 1 --store <id>` to confirm the payload paths still hold.
 - **The browser layer is not exercised by CI** (the Chromium binary cannot be downloaded
   there). `make browsers` plus one `--pages 1 --store <id>` run against a live store is the
   check to run after any change to `spiders/` or `store_context.py`.
-- **Store verification cannot always read an indicator.** When Walmart renders none, the
-  optional `ui` step drives the picker; if that also fails the store is skipped. Supply a
-  captured `WMT_STORAGE_STATE` session for the most reliable pinning.
+- **Store verification cannot always read an indicator.** Verification now prefers the location
+  Walmart resolved *into the payload* (`location.postalCode`, `location.storeIds`,
+  `fulfillmentLabel[].locationText`) over scraping the rendered header, and only falls back to
+  the indicator text. When neither is present the optional `ui` step drives the picker; if that
+  also fails the store is skipped. Supply a captured `WMT_STORAGE_STATE` session for the most
+  reliable pinning.
 - **`ppm` coverage is only as good as the page.** Many tiles do not display a unit price; those
   rows correctly carry `""` rather than a computed value.
 

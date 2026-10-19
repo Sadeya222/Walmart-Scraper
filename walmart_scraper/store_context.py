@@ -185,6 +185,42 @@ def _distinctive_tokens(value: str) -> list[str]:
     ]
 
 
+def _payload_location_evidence(node: Any, *, limit: int = 400) -> dict[str, set[str] | list[str]]:
+    """Collect ``postalCode`` / ``storeIds`` / ``locationText`` from a payload."""
+    postal_codes: set[str] = set()
+    store_ids: set[str] = set()
+    location_text: list[str] = []
+    seen = 0
+    stack: list[Any] = [node]
+    while stack and seen < limit:
+        current = stack.pop()
+        if isinstance(current, dict):
+            seen += 1
+            code = clean_text(current.get("postalCode") or current.get("zipCode") or "")
+            if code:
+                postal_codes.add(code)
+            for key in ("storeIds", "storeNumbers"):
+                value = current.get(key)
+                if isinstance(value, list):
+                    store_ids.update(clean_text(str(entry)) for entry in value if entry)
+            for key in ("storeId",):
+                value = current.get(key)
+                if isinstance(value, (str, int)) and clean_text(str(value)):
+                    store_ids.add(clean_text(str(value)))
+            text = clean_text(current.get("locationText") or "")
+            if text and text not in location_text:
+                location_text.append(text)
+            stack.extend(current.values())
+        elif isinstance(current, list):
+            seen += 1
+            stack.extend(current)
+    return {
+        "postal_codes": postal_codes,
+        "store_ids": store_ids,
+        "location_text": location_text,
+    }
+
+
 class StoreVerifier:
     """Compares the rendered store indicator against the configured store.
 
@@ -229,6 +265,51 @@ class StoreVerifier:
 
         return StoreVerification(
             False, store, text, "", f"indicator_does_not_match_store_{store.store_id}_{zip_code}"
+        )
+
+    # ------------------------------------------------------------------ #
+    def verify_from_payload(self, payload: Any, store: StoreConfig) -> StoreVerification:
+        """Verify against the location Walmart itself resolved into the payload.
+
+        This is a stronger signal than scraping the header: a real product node
+        carries ``location.postalCode``, ``location.storeIds`` and
+        ``fulfillmentLabel[].locationText`` describing the store the prices on
+        that page were computed for.
+        """
+        if payload is None:
+            return StoreVerification(False, store, "", "", "no_payload")
+        evidence = _payload_location_evidence(payload)
+        if not (evidence["postal_codes"] or evidence["store_ids"] or evidence["location_text"]):
+            return StoreVerification(False, store, "", "", "payload_has_no_location")
+
+        zip_code = store.zipcode.split("-")[0]
+        if zip_code and zip_code in evidence["postal_codes"]:
+            return StoreVerification(
+                True, store, " ".join(sorted(evidence["postal_codes"])), "payload_postal_code", ""
+            )
+        if store.store_id and store.store_id in evidence["store_ids"]:
+            return StoreVerification(
+                True, store, " ".join(sorted(evidence["store_ids"])), "payload_store_id", ""
+            )
+        if evidence["location_text"]:
+            combined = fold(" ".join(evidence["location_text"]))
+            name_key = fold(store.store_name)
+            if name_key and name_key in combined:
+                return StoreVerification(
+                    True, store, " ".join(evidence["location_text"]), "payload_store_name", ""
+                )
+            address_tokens = _distinctive_tokens(store.store_location)
+            if address_tokens and any(token in combined for token in address_tokens):
+                return StoreVerification(
+                    True, store, " ".join(evidence["location_text"]), "payload_address_token", ""
+                )
+        return StoreVerification(
+            False,
+            store,
+            " ".join(sorted(evidence["postal_codes"] | evidence["store_ids"]))
+            or " ".join(evidence["location_text"]),
+            "",
+            f"payload_location_does_not_match_store_{store.store_id}_{zip_code}",
         )
 
     # ------------------------------------------------------------------ #

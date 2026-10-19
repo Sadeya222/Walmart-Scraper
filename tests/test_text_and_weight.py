@@ -147,8 +147,19 @@ def test_exact_weights_are_not_flagged(weight):
     assert is_approximate_weight(weight) is False
 
 
-def test_extract_weight_prefers_the_first_clean_candidate():
-    assert extract_weight(["Net Weight: 1 gal (3.78 L)", "Item Weight: 8.6 lb"]) == "1 gal (3.78 L)"
+def test_extract_weight_ranks_candidates_instead_of_taking_the_first():
+    # A real spec sheet carries several overlapping measures.  An explicit
+    # weight label beats an unlabelled one, and a mass beats a volume.
+    assert extract_weight(["2 lb", "Item Weight: 1.5 lb"]) == "1.5 lb"
+    assert extract_weight(["Net Weight: 1 gal (3.78 L)", "Item Weight: 8.6 lb"]) == "8.6 lb"
+    # Verified against captured spec sheets that disagree with each other:
+    # Great Value Walnuts 16 oz lists both "Size: 16 oz" and "Weight: 1.12 lb".
+    assert extract_weight(["Size: 16 oz (454g)", "Weight: 1.12 lb"]) == "1.12 lb"
+    assert extract_weight(["Product net content parent: 16 Ounces", "Weight: 1 lb"]) == "1 lb"
+    # Falls back to net content / size when nothing is labelled "weight".
+    assert extract_weight(["Net content statement: NET WT 4 oz (113g)"]) == "NET WT 4 oz (113g)"
+    assert extract_weight(["Size: 12 Ounce"]) == "12 Ounce"
+    # Unlabelled and approximate handling.
     assert extract_weight([None, "", "8.6 lb"]) == "8.6 lb"
     assert extract_weight(["approx 1.2 lb"]) == ""
     assert extract_weight([]) == ""

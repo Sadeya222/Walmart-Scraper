@@ -50,6 +50,8 @@ _UNIT_TOKENS = "|".join(sorted((re.escape(unit) for unit in MEASURE_UNITS), key=
 #    to the first alternative and "g" matched inside the word "great";
 #  * a unit *word* alone is not a weight ("Fresh spinach bag", "each item"), so
 #    the pattern requires a number in front of the unit.
+_GENERIC_LABEL_RE = re.compile(r"^(?P<label>[A-Za-z][A-Za-z .&/'-]{1,40}):\s*(?P<value>.{1,60})$")
+
 _NUMERIC_MEASURE_RE = re.compile(
     rf"(?<![a-z0-9])\d+(?:[.,]\d+)?\s*(?:{_UNIT_TOKENS})(?![a-z])", re.IGNORECASE
 )
@@ -95,6 +97,12 @@ def _candidate_weight(text: str) -> str:
     label_match = WEIGHT_LABEL_RE.search(cleaned)
     value = label_match.group("value") if label_match else cleaned
     value = clean_text(value)
+    # Strip any other "Label: value" prefix (e.g. "Net content statement: ..."),
+    # but only when what remains is an actual measure.
+    if not label_match:
+        generic = _GENERIC_LABEL_RE.match(cleaned)
+        if generic and _contains_unit(generic.group("value")):
+            value = clean_text(generic.group("value"))
     if not value or is_approximate_weight(value):
         return ""
     if _contains_unit(value):
@@ -108,18 +116,63 @@ def _candidate_weight(text: str) -> str:
     return ""
 
 
-def extract_weight(candidates: Iterable[str | None]) -> str:
-    """First clean weight among ``candidates`` (most specific first), else ``""``.
+# Real Walmart spec sheets carry several overlapping measures on one product
+# (verified against captured product pages, e.g. Great Value Walnuts 16 oz which
+# lists both "Size: 16 oz" and "Weight: 1.12 lb").  Taking the first parseable
+# candidate can therefore report the *size* as the weight, so candidates are
+# ranked by how explicitly they state a weight.
+_WEIGHT_LABEL_PRIORITY: tuple[tuple[str, int], ...] = (
+    ("item weight", 0),
+    ("product weight", 0),
+    ("unit weight", 0),
+    ("shipping weight", 0),
+    ("weight", 1),
+    ("net weight", 2),
+    ("net content", 3),
+    ("net wt", 3),
+    ("size", 4),
+)
 
-    Returns the weight **as normalised for display** (``"1.2 lb"``).  Approximate
-    candidates are skipped, and if *every* candidate is approximate the caller is
-    expected to drop the record - see ``WalmartValidationPipeline``.
+# A mass measure is a better ``weight`` than a volume one: "Item Weight: 8.6 lb"
+# beats "Net Weight: 1 gal (3.78 L)" on a real milk PDP.
+_MASS_UNITS = frozenset(
+    {"lb", "lbs", "pound", "pounds", "oz", "ounce", "ounces",
+     "g", "gram", "grams", "kg", "kilogram", "kilograms"}
+)
+
+
+def _is_mass(text: str) -> bool:
+    match = _NUMERIC_MEASURE_RE.search(clean_text(text))
+    return bool(match) and match.group(0).strip().split()[-1].lower().rstrip(".") in _MASS_UNITS
+
+
+def _candidate_rank(text: str) -> int:
+    """Lower is better.  Unlabelled measures rank last."""
+    lowered = clean_text(text).lower()
+    best = 9
+    for needle, rank in _WEIGHT_LABEL_PRIORITY:
+        if needle in lowered:
+            best = min(best, rank)
+    return best
+
+
+def extract_weight(candidates: Iterable[str | None]) -> str:
+    """Best clean weight among ``candidates``, or ``""`` when none is usable.
+
+    "Best" means the most explicitly weight-labelled candidate, then the first
+    one in source order.  Returns the value as Walmart displays it.  Approximate
+    candidates are skipped; if *every* candidate is approximate the caller drops
+    the record - see ``WalmartPolicyPipeline``.
     """
-    for candidate in candidates or ():
+    scored: list[tuple[int, int, int, str]] = []
+    for index, candidate in enumerate(candidates or ()):
         weight = _candidate_weight(candidate if candidate is not None else "")
         if weight:
-            return weight
-    return ""
+            scored.append((_candidate_rank(candidate or ""), 0 if _is_mass(weight) else 1, index, weight))
+    if not scored:
+        return ""
+    scored.sort(key=lambda entry: (entry[0], entry[1], entry[2]))
+    return scored[0][3]
 
 
 def all_candidates_approximate(candidates: Sequence[str | None]) -> bool:
