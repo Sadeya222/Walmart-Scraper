@@ -148,3 +148,15 @@ DEFAULT_REQUEST_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 WMT_STORAGE_STATE = os.environ.get("WMT_STORAGE_STATE", "")
+
+# --------------------------------------------------------------------------- #
+# Audit evidence capture (off by default; see walmart_scraper/evidence.py)
+# --------------------------------------------------------------------------- #
+WMT_EVIDENCE_ENABLED = os.environ.get("WMT_EVIDENCE_ENABLED", "false").strip().lower() not in {
+    "0", "false", "no", "off",
+}
+WMT_EVIDENCE_DIR = os.environ.get("WMT_EVIDENCE_DIR", "output/evidence")
+try:
+    WMT_EVIDENCE_MAX_PRODUCTS = int(os.environ.get("WMT_EVIDENCE_MAX_PRODUCTS", "2"))
+except ValueError:
+    WMT_EVIDENCE_MAX_PRODUCTS = 2

@@ -3,7 +3,7 @@ VENV ?= .venv
 PY   := $(VENV)/bin/python
 PIP  := $(VENV)/bin/pip
 
-.PHONY: help install browsers dev test lint coverage plan crawl docker-build docker-crawl clean
+.PHONY: help install browsers dev test lint coverage plan crawl evidence docker-build docker-crawl clean
 
 help:
 	@echo "install       create .venv and install pinned dependencies"
@@ -12,6 +12,7 @@ help:
 	@echo "lint          flake8 over the package, runner and tests"
 	@echo "plan          print the crawl plan without crawling (--dry-run)"
 	@echo "crawl         run the crawl"
+	@echo "evidence      run the crawl with raw-evidence capture and a timestamped log"
 	@echo "docker-build  build the production image"
 	@echo "clean         remove run artifacts and caches"
 
@@ -39,6 +40,11 @@ plan:
 
 crawl:
 	$(PY) run_scraper.py
+
+# The run to perform for a contest/acceptance review: raw evidence for up to 2
+# products per store + a timestamped log under output/.
+evidence:
+	$(PY) run_scraper.py --evidence --log-file "output/run-$$(date +%Y%m%dT%H%M%SZ).log"
 
 docker-build:
 	docker build -t walmart-scraper:local .

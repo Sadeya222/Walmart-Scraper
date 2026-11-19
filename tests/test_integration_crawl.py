@@ -90,6 +90,57 @@ def test_dry_run_prints_the_plan_without_crawling(crawl_env):
     assert "store 2457" in result.stdout
 
 
+def test_evidence_capture_produces_the_reviewer_files(crawl_env):
+    """--evidence must yield the store response and the product response behind a
+    displayed price - the files an acceptance reviewer asks to see."""
+    env = {
+        **crawl_env["env"],
+        "WMT_EVIDENCE_ENABLED": "true",
+        "WMT_EVIDENCE_MAX_PRODUCTS": "2",
+        "WMT_EVIDENCE_DIR": str(crawl_env["tmp"] / "evidence"),
+    }
+    result = run_scraper(env)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    evidence_root = crawl_env["tmp"] / "evidence"
+    store_files = list(evidence_root.rglob("store_context_store2457.json"))
+    price_files = sorted(evidence_root.rglob("price_evidence_store2457_*.json"))
+    index_files = list(evidence_root.rglob("evidence_index.json"))
+
+    assert len(store_files) == 1, store_files
+    assert price_files, "expected at least one price evidence file"
+    assert len(price_files) <= 2, price_files  # WMT_EVIDENCE_MAX_PRODUCTS=2
+    assert len(index_files) == 1, index_files
+
+    # --- store response behind the displayed prices ---
+    store_doc = json.loads(store_files[0].read_text())
+    assert store_doc["store"]["store_id"] == "2457"
+    assert store_doc["store"]["zipcode"] == "78745"
+    assert store_doc["verification"]["verified"] is True
+    assert store_doc["fulfillment_mode"] == "any"
+    assert any(c["name"] == "wm_st" for c in store_doc["cookies_seeded"])
+    assert "AccountKey" not in json.dumps(store_doc)
+
+    # --- product response behind one displayed price (the milk) ---
+    milk_file = next((p for p in price_files if "104517984" in p.name), None)
+    assert milk_file is not None, price_files
+    milk_doc = json.loads(milk_file.read_text())
+    # Raw responses exactly as the fixture server served them.
+    assert milk_doc["pdp"]["raw_product"]["usItemId"] == "104517984"
+    assert milk_doc["listing"]["raw_tile"]["usItemId"] == "104517984"
+    # The exported record those responses produced.
+    assert milk_doc["record"]["regular_price"] == "3.98"
+    assert milk_doc["record"]["sale_price"] == "3.48"
+    assert milk_doc["record"]["ppm"] == "$0.03/fl oz"
+    assert milk_doc["record"]["gupc"] == ""
+
+    # --- index lists what was captured ---
+    index_doc = json.loads(index_files[0].read_text())
+    assert index_doc["counts"]["store_context"] == 1
+    assert index_doc["counts"]["price"] == len(price_files)
+    assert index_doc["files"]
+
+
 def test_full_crawl_publishes_a_valid_dataset(crawl_env):
     result = run_scraper(crawl_env["env"])
     assert result.returncode == 0, result.stdout + result.stderr

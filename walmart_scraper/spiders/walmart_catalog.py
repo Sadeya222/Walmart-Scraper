@@ -31,6 +31,7 @@ from scrapy_playwright.page import PageMethod
 
 from ..blocking import BlockingDetector
 from ..config_loader import CategoryTarget, ScraperConfig, StoreConfig
+from ..evidence import EvidenceCollector
 from ..items import ProductRecord, assemble_record, crawl_date, deals_for
 from ..parsing import (
     ParsedProduct,
@@ -78,6 +79,10 @@ class WalmartCatalogSpider(scrapy.Spider):
         self.storage_state_path: str = ""
         self._detector: BlockingDetector | None = None
         self._verifier: StoreVerifier | None = None
+        # Disabled placeholder; replaced by the real collector in from_crawler.
+        self._evidence = EvidenceCollector(
+            enabled=False, directory="output/evidence", run_id="", max_products_per_store=0
+        )
         # ``use_playwright`` is a real operational switch: production runs need the
         # browser, but a plain-HTTP smoke crawl (or the integration test suite)
         # can exercise every layer below the browser without one.
@@ -100,6 +105,13 @@ class WalmartCatalogSpider(scrapy.Spider):
             min_items=spider.config.min_items_per_page,
             min_body_bytes=spider.config.min_body_bytes,
         )
+        spider._evidence = EvidenceCollector.from_settings(settings)
+        if spider._evidence.enabled:
+            logger.info(
+                "evidence capture enabled -> %s (max %d product(s) per store)",
+                spider._evidence.directory,
+                spider._evidence.max_products_per_store,
+            )
         spider._verifier = StoreVerifier(
             tuple((getattr(spider.config, "selectors", {}) or {}).get("store_indicator", ()))
         )
@@ -246,6 +258,7 @@ class WalmartCatalogSpider(scrapy.Spider):
         # Resolve relative canonical URLs against the page's own origin so the
         # crawl follows walmart.ca / staging hosts as well as walmart.com.
         products = extract_listing_products(payload, base_url=response.url)
+        self._evidence.stash_listing_items(store, payload, products)
         canaries = target.canary_ids
         report = self._detector.grade(
             url=response.url,
@@ -326,9 +339,8 @@ class WalmartCatalogSpider(scrapy.Spider):
         # signal: it is the store this page was actually priced for, and it is
         # present even when the header indicator is not rendered.  The rendered
         # indicator text is the fallback for pages with no location in payload.
-        verification = self._verifier.verify_from_payload(
-            BlockingDetector.extract_next_data(response.text), store
-        )
+        payload = BlockingDetector.extract_next_data(response.text)
+        verification = self._verifier.verify_from_payload(payload, store)
         if not verification.verified:
             verification = self._verifier.verify_from_text(_indicator_text(response), store)
 
@@ -348,6 +360,19 @@ class WalmartCatalogSpider(scrapy.Spider):
                 await page.close()
             except Exception:  # pragma: no cover - live browser only
                 pass
+
+        # Audit evidence: the store/fulfillment context Walmart resolved for
+        # this page, whatever the outcome - a reviewer can trace every price in
+        # the dataset back to it.
+        self._evidence.record_store_context(
+            store=store,
+            verification=verification,
+            payload=payload,
+            response_url=response.url,
+            verification_mode=mode,
+            cookies=store_cookies(store),
+            fulfillment_mode=self.config.fulfillment_mode,
+        )
 
         if verification.verified:
             self._verified_stores.add(store.store_id)
@@ -390,6 +415,7 @@ class WalmartCatalogSpider(scrapy.Spider):
         assert self.state is not None and self._detector is not None
 
         payload = BlockingDetector.extract_next_data(response.text)
+        self._evidence.stash_pdp_node(store, listing_product, payload)
         pdp_product = extract_pdp_product(payload, base_url=response.url)
 
         if pdp_product is None:
@@ -429,7 +455,7 @@ class WalmartCatalogSpider(scrapy.Spider):
             extra_private_labels=self.config.extra_private_labels,
             price_format=self.config.price_format,
         )
-        return ProductRecord(
+        record = ProductRecord(
             item=item,
             product=product,
             store_id=store.store_id,
@@ -438,6 +464,8 @@ class WalmartCatalogSpider(scrapy.Spider):
             page=page,
             sponsored=product.sponsored,
         )
+        self._evidence.record_price(record=record, store=store, target=target, page=page)
+        return record
 
     # ------------------------------------------------------------------ #
     def on_error(self, failure: Any) -> None:

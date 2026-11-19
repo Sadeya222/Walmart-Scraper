@@ -131,6 +131,7 @@ Classification is by **what the shopper must do**, not by wording.
 │   ├── parsing.py              __NEXT_DATA__ extraction
 │   ├── weight.py               Weight extraction + approximate-weight exclusion
 │   ├── blocking.py             Silent-block detection and thin-result grading
+│   ├── evidence.py             Raw store/product payload capture (audit trail)
 │   ├── atomic_io.py            Atomic writes + the publication gate
 │   ├── state.py                Resume checkpoints
 │   ├── exporters.py            Ordered JSON Lines writer
@@ -140,7 +141,7 @@ Classification is by **what the shopper must do**, not by wording.
 │   ├── stores.csv                  Store locations
 │   ├── selectors.json              DOM fallback selectors
 │   └── private_label_brands.txt    Extra private-label names
-├── tests/                      279 tests incl. a full end-to-end crawl
+├── tests/                      387 tests incl. a full end-to-end crawl
 ├── azure/                      ACI template + deploy script, Function app
 ├── Dockerfile / entrypoint.sh / docker-compose.yml
 └── requirements.txt            Pinned dependency stack
@@ -204,7 +205,40 @@ redacted from it.
 
 ---
 
-## 7. Configuration
+## 7. Audit evidence (reviewer proof)
+
+The acceptance review asks for the store and product responses behind a displayed
+price - proof that the dataset came from Walmart itself. The scraper can capture
+that evidence on any run, without changing what gets published.
+
+Enable it with the `--evidence` flag (or `WMT_EVIDENCE_ENABLED=true`):
+
+```bash
+mkdir -p output
+python run_scraper.py --evidence \
+  --log-file "output/run-$(date +%Y%m%dT%H%M%SZ).log"
+# or: make evidence
+```
+
+Each run then writes `output/evidence/<run_id>/` containing:
+
+| File | What it proves |
+| --- | --- |
+| `store_context_store<id>.json` | The store/fulfillment context Walmart resolved into the payload (`postalCode`, `storeIds`, `fulfillmentLabel[].locationText`), the store indicator text, the verification outcome (`matched_on`, `verified`, detail), the fulfillment mode in effect, the exact location cookies seeded into the browser context, and the URL fetched. This is the **store response behind every displayed price**. |
+| `price_evidence_store<id>_<usItemId>.json` | The raw listing tile node and the raw PDP product node **exactly as Walmart served them**, plus the exported 22-field record they produced (prices, ppm, deals, UPC) and the page/category they came from. This is the **product response behind one displayed price**. |
+| `evidence_index.json` | The list of files captured during the run. |
+
+Properties worth knowing:
+
+- **Bounded**: at most `WMT_EVIDENCE_MAX_PRODUCTS` products per store (default 2).
+- **Non-fatal**: an evidence failure logs a warning and is skipped; it can never fail or alter a run.
+- **Not committed**: `output/` is git-ignored. Evidence files contain Walmart pages - treat them like the dataset.
+- **No secrets**: proxy URLs, connection strings and credentials are never written. Seeded cookies carry only the configured location (store id / ZIP / coordinates).
+- Resumed runs write evidence with `raw_*_unavailable` notes instead of silently omitting the sections - the file always tells the truth about what was and was not captured.
+
+A normal manifest (`output/run_manifest.json`) plus these files is everything needed to answer "show me the source of that price": pick any row from `output/walmart_catalog.jsonl`, open `price_evidence_store<id>_<usItemId>.json` for the product, and `store_context_store<id>.json` for the location context it was priced for.
+
+## 8. Configuration
 
 ### `config/Walmart_Category_URLs.csv`
 
@@ -252,7 +286,7 @@ settings.
 
 ---
 
-## 8. Robustness
+## 9. Robustness
 
 ### Anti-blocking
 
@@ -287,7 +321,7 @@ over a complete one.
 
 ---
 
-## 9. Azure deployment
+## 10. Azure deployment
 
 ### Option A — Container Instances (recommended)
 
@@ -347,10 +381,10 @@ docker run --rm -v "$PWD/config:/app/config:ro" -v "$PWD/output:/app/output" \
 
 ---
 
-## 10. Tests
+## 11. Tests
 
 ```bash
-make test       # 375 tests
+make test       # 387 tests
 make lint       # flake8
 make coverage
 ```
@@ -394,7 +428,7 @@ layer is the one part not covered by CI — see the next section.
 
 ---
 
-## 11. Known limitations
+## 12. Known limitations
 
 - **Walmart's markup and payload shape change.** Parsing prefers the embedded `__NEXT_DATA__`
   state and falls back to `config/selectors.json`, but a layout change can still require
@@ -408,7 +442,10 @@ layer is the one part not covered by CI — see the next section.
   live pages. The parser is written to degrade to `""` rather than guess when a shape is
   unrecognised.
 - **No live run has been performed here.** `walmart.com` was unreachable from the build
-  environment (DNS resolved, TCP connect refused). The sample rows in
+  environment (DNS resolved, TCP connect refused), so no dataset, run manifest, run log or
+  pickup-store session exists yet in this repository. The first live run should be
+  `--pages 1 --store <id> --evidence` to confirm the payload paths still hold and to produce
+  the reviewer proof described in section 7. The sample rows in
   `config/Walmart_Category_URLs.csv` use `/search?q=…` URLs, whose shape is guaranteed valid;
   if you replace them with `/cp/<id>` category URLs, verify those ids against a live site first.
   The first live run should be `--pages 1 --store <id>` to confirm the payload paths still hold.
@@ -424,7 +461,7 @@ layer is the one part not covered by CI — see the next section.
 - **`ppm` coverage is only as good as the page.** Many tiles do not display a unit price; those
   rows correctly carry `""` rather than a computed value.
 
-## 12. Legal and responsible use
+## 13. Legal and responsible use
 
 This tool issues automated requests to a third-party website. `ROBOTSTXT_OBEY` is `False`
 because the target paths are disallowed for crawlers — **you** are responsible for having the
@@ -433,7 +470,7 @@ arrangement, or Walmart's own APIs), and for complying with Walmart's Terms of U
 applicable law. Keep `WMT_CONCURRENCY` low and the pacing delays on: they are both a
 politeness control and the cheapest defence against being blocked.
 
-## 13. Secrets
+## 14. Secrets
 
 `.env` is git-ignored. Only `.env.example` (with placeholders) is committed. Proxy URLs are
 redacted in the run manifest, and `AZURE_STORAGE_CONNECTION_STRING` is passed to containers as

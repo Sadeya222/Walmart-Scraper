@@ -32,6 +32,8 @@ __all__ = [
     "ParsedProduct",
     "extract_listing_products",
     "extract_pdp_product",
+    "find_pdp_product_node",
+    "iter_listing_item_nodes",
     "merge_products",
     "is_marketplace",
     "is_shipping_only",
@@ -240,6 +242,44 @@ def _badge_texts(item: dict[str, Any]) -> list[str]:
 # --------------------------------------------------------------------------- #
 # Listing extraction
 # --------------------------------------------------------------------------- #
+def iter_listing_item_nodes(payload: dict[str, Any] | None) -> Iterable[dict[str, Any]]:
+    """Yield the raw product tile dicts from a category page payload, exactly as served.
+
+    Used by the evidence capture to record what Walmart actually sent; the tile
+    handed to :func:`extract_listing_products` is the same object, so the raw
+    copy and the parsed copy can be compared side by side.
+    """
+    result = search_result(payload)
+    for stack in _item_stacks(result):
+        for raw_item in _stack_items(stack):
+            item = _item_core(raw_item)
+            if isinstance(item, dict):
+                yield item
+
+
+def find_pdp_product_node(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return the raw PDP product node from a product page payload, as served.
+
+    Same path list :func:`extract_pdp_product` parses, so the evidence copy and
+    the parsed copy are always the same node.
+    """
+    if not isinstance(payload, dict):
+        return None
+    for path in (
+        # Verified on a captured walmart.com product page: the product lives at
+        # props.pageProps.initialData.data.product (extra "data" level).
+        "props.pageProps.initialData.data.product",
+        "props.pageProps.initialData.product",
+        "props.pageProps.product",
+        "props.pageProps.initialData",
+        "props.initialData.product",
+    ):
+        node = _walk(payload, path)
+        if isinstance(node, dict) and (node.get("usItemId") or node.get("name") or node.get("title")):
+            return node
+    return None
+
+
 def extract_listing_products(payload: dict[str, Any] | None, *, base_url: str = "") -> list[ParsedProduct]:
     """Parse every product tile from a category page payload."""
     result = search_result(payload)
@@ -517,22 +557,7 @@ def _is_sponsored(item: dict[str, Any]) -> bool:
 # --------------------------------------------------------------------------- #
 def extract_pdp_product(payload: dict[str, Any] | None, *, base_url: str = "") -> ParsedProduct | None:
     """Parse a product detail page payload (adds UPC, weight, PPM, brand)."""
-    if not isinstance(payload, dict):
-        return None
-    product = None
-    for path in (
-        # Verified on a captured walmart.com product page: the product lives at
-        # props.pageProps.initialData.data.product (extra "data" level).
-        "props.pageProps.initialData.data.product",
-        "props.pageProps.initialData.product",
-        "props.pageProps.product",
-        "props.pageProps.initialData",
-        "props.initialData.product",
-    ):
-        node = _walk(payload, path)
-        if isinstance(node, dict) and (node.get("usItemId") or node.get("name") or node.get("title")):
-            product = node
-            break
+    product = find_pdp_product_node(payload)
     if product is None:
         return None
 
