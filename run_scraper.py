@@ -47,6 +47,12 @@ EXIT_LABELS = {
 }
 
 
+def _evidence_enabled() -> bool:
+    return os.environ.get("WMT_EVIDENCE_ENABLED", "false").strip().lower() not in {
+        "0", "false", "no", "off", "",
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="run_scraper.py",
@@ -79,6 +85,13 @@ def build_parser() -> argparse.ArgumentParser:
                         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                         help="Console log level.")
     parser.add_argument("--log-file", default=None, help="Also write logs to this file.")
+    parser.add_argument("--evidence", action="store_true",
+                        help="Capture raw store/product payloads behind displayed prices "
+                             "(WMT_EVIDENCE_ENABLED=true) into output/evidence/<run_id>/.")
+    parser.add_argument("--evidence-dir", default=None, metavar="DIR",
+                        help="Override the evidence directory (default output/evidence).")
+    parser.add_argument("--evidence-max-products", type=int, default=None, metavar="N",
+                        help="Max products per store to capture raw evidence for (default 2).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Validate configuration and print the crawl plan, then exit.")
     return parser
@@ -95,12 +108,16 @@ def apply_cli_to_env(args: argparse.Namespace) -> None:
         "WMT_MAX_PAGES_PER_CATEGORY": args.pages,
         "WMT_CONCURRENCY": args.concurrency,
         "WMT_MIN_RECORDS_PER_RUN": args.min_records,
+        "WMT_EVIDENCE_DIR": args.evidence_dir,
+        "WMT_EVIDENCE_MAX_PRODUCTS": args.evidence_max_products,
     }
     for key, value in mapping.items():
         if value is not None:
             os.environ[key] = str(value)
     if args.resume:
         os.environ["WMT_RESUME"] = "true"
+    if args.evidence:
+        os.environ["WMT_EVIDENCE_ENABLED"] = "true"
     if args.no_pdp:
         os.environ["WMT_VISIT_PDP"] = "false"
     if args.no_scroll:
@@ -154,6 +171,9 @@ def print_plan(config: ScraperConfig, state: RunState) -> None:
     print(f"  policy          : marketplace={'excluded' if config.exclude_marketplace else 'kept'}, "
           f"shipping-only={config.shipping_only_mode}, price_format={config.price_format}, "
           f"coupon_price_from_discount={config.apply_coupon_discount}")
+    if _evidence_enabled():
+        print(f"  evidence        : ON -> {os.environ.get('WMT_EVIDENCE_DIR', 'output/evidence')}/<run_id>/ "
+              f"(max {os.environ.get('WMT_EVIDENCE_MAX_PRODUCTS', '2')} product(s) per store)")
     print("=" * 78)
 
 
@@ -243,6 +263,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  withheld because : {stats.get_value('walmart/withheld_reason', 'n/a')}")
             print("  the previous dataset was left untouched")
         print(f"  manifest         : {Path(config.output_dir) / 'run_manifest.json'}")
+        if _evidence_enabled():
+            evidence_dir = Path(os.environ.get("WMT_EVIDENCE_DIR", "output/evidence"))
+            print(f"  evidence         : {evidence_dir}/{run_id}/")
         print("-" * 78)
         return exit_code
 

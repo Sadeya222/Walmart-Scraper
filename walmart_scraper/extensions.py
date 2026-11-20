@@ -117,6 +117,12 @@ class RunLifecycleExtension:
             self.state.save()
         except OSError as exc:  # pragma: no cover - best effort
             logger.warning("could not save checkpoint: %s", exc)
+        evidence = getattr(spider, "_evidence", None)
+        if evidence is not None:
+            try:
+                evidence.write_index()
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("could not write evidence index: %s", exc)
         logger.info(
             "run finished reason=%s listings=%s products=%s blocked=%s suspect=%s",
             reason,
