@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-19
 **Environment:** Linux (x86_64), Python 3.11.2, dependencies pinned in `requirements.txt`
-**Repository (public):** https://github.com/Sadeya222/Walmart-Scraper
+**Repository:** https://github.com/Sadeya222/Walmart-Scraper (visibility is controlled by the owner; reviewer access can be shared on request)
 **Branch:** `arena/e1754fad-walmart-scraper`
 **This file is part of the commit it describes — clone that commit to verify everything below.**
 
